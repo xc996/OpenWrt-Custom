@@ -8,7 +8,7 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 ###############改名字##############
-name: CMCC-RAX3000M-EMMC-26MHz-hanwckf
+name: redmi-ax6000-hanwckf
 
 permissions: write-all
 # 开启写权限，防止无法上传到release
@@ -36,7 +36,7 @@ env:
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
   ###############改名字##############
-  OPENWRT_NAME: hanwckf-26MHz
+  OPENWRT_NAME: hanwckf
 
 jobs:
   build:
@@ -159,7 +159,7 @@ jobs:
         echo "release_tag=${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}" >> $GITHUB_OUTPUT
         touch release.txt
         echo "由衷感谢所有为openwrt无私奉献的大佬们" >> release.txt
-        echo " 固件下载" >> release.txt
+        echo " 固件下载 ip 192.168.10.1" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
         
     - name: 发布至release
