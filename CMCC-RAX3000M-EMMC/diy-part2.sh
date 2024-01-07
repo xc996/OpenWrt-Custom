@@ -15,6 +15,6 @@ sed -i 's/ImmortalWrt/TPlink/g' package/base-files/files/bin/config_generate   #
 #sed -i 's/  luci-app-quickstart / /g' target/linux/mediatek/Makefile  #移除默认quickstart
 # 移除重复软件包
 #rm -rf feeds/luci/themes/luci-theme-argon
-
+wget https://github.com/linkease/istore/raw/main/luci/luci-app-store/src/key-build.pub -O package/istore/luci-app-store/luci/luci-app-store/src/key-build.pub
 # 修改 argon 为默认主题,可根据你喜欢的修改成其他的（不选择那些会自动改变为默认主题的主题才有效果）
 sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
