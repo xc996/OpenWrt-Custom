@@ -21,7 +21,7 @@ env:
   REPO_BRANCH: openwrt-21.02
   FEEDS_CONF: feeds.conf.default
   #CONFIG_FILE: CMCC-RAX3000M-EMMC/.config
-  CONFIG_FILE: CMCC-RAX3000M-EMMC/new.config
+  CONFIG_FILE: CMCC-RAX3000M-EMMC/3.config
   DIY_P1_SH: CMCC-RAX3000M-EMMC/diy-part1.sh
   DIY_P2_SH: CMCC-RAX3000M-EMMC/diy-part2.sh
   SSH_ACTIONS: false
