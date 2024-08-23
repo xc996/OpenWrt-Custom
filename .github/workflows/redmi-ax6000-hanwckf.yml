@@ -20,8 +20,7 @@ env:
   #REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x
   REPO_BRANCH: openwrt-21.02
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: redmi-ax6000/hanwckf.config
-  #CONFIG_FILE: redmi-ax6000/ax6000_mt_wifi.config
+  CONFIG_FILE: redmi-ax6000/ax6000mini.config
   DIY_P1_SH: redmi-ax6000/diy-part1.sh
   DIY_P2_SH: redmi-ax6000/diy-part2.sh
   SSH_ACTIONS: false
@@ -159,6 +158,7 @@ jobs:
         touch release.txt
         echo "由衷感谢所有为openwrt无私奉献的大佬们" >> release.txt
         echo " 固件 ip 172.16.1.1" >> release.txt
+        echo " 测试" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
         
     - name: 发布至release
