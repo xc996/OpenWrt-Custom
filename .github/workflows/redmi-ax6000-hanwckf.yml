@@ -158,7 +158,6 @@ jobs:
         touch release.txt
         echo "由衷感谢所有为openwrt无私奉献的大佬们" >> release.txt
         echo " 固件 ip 172.16.1.1" >> release.txt
-        echo " 测试" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
         
     - name: 发布至release
