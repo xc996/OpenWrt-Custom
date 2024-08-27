@@ -16,11 +16,10 @@ on:
 #    - cron: 0 16 * * *
 
 env:
-  #REPO_URL: https://github.com/hanwckf/immortalwrt-mt798x
-  REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x
+  REPO_URL: https://github.com/hanwckf/immortalwrt-mt798x
   REPO_BRANCH: openwrt-21.02
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: redmi-ax6000/hanwckf.config
+  CONFIG_FILE: redmi-ax6000/mini.config
   DIY_P1_SH: redmi-ax6000/diy-part1.sh
   DIY_P2_SH: redmi-ax6000/diy-part2.sh
   SSH_ACTIONS: false
