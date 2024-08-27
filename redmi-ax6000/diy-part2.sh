@@ -10,11 +10,9 @@
 # Description: OpenWrt DIY script part 2 (After Update feeds)
 #
 
-sed -i 's/192.168.1.1/172.16.1.1/g' package/base-files/files/bin/config_generate   # 定制默认IP hanwckf
-sed -i 's/192.168.6.1/172.16.1.1/g' package/base-files/files/bin/config_generate # 定制默认IP 237
+sed -i 's/192.168.1.1/172.16.1.1/g' package/base-files/files/bin/config_generate   # 定制默认IP
 sed -i 's/ImmortalWrt/Bocchi/g' package/base-files/files/bin/config_generate   # 定制默认主机名字
 sed -i 's/  luci-app-quickstart / /g' target/linux/mediatek/Makefile  #移除默认quickstart
-sed -i 's/  luci-app-wrtbwmon / /g' target/linux/mediatek/Makefile #移除默认wrtbwmon
 # 移除重复软件包
 # rm -rf feeds/luci/themes/luci-theme-argon
 # wget https://github.com/linkease/istore/raw/main/luci/luci-app-store/src/key-build.pub -O package/istore/luci-app-store/luci/luci-app-store/src/key-build.pub
