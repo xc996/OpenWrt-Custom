@@ -1,5 +1,5 @@
 ###############改名字##############
-name: redmi-ax6000-hanwckf
+name: redmi-ax6000-padavanonly
 
 permissions: write-all
 # 开启写权限，防止无法上传到release
@@ -16,12 +16,12 @@ on:
 #    - cron: 0 16 * * *
 
 env:
-  REPO_URL: https://github.com/hanwckf/immortalwrt-mt798x
+  REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x
   REPO_BRANCH: openwrt-21.02
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: redmi-ax6000/hanwckf/config/new_wifi.config
-  DIY_P1_SH: redmi-ax6000/hanwckf/config/diy-part/diy-part1.sh
-  DIY_P2_SH: redmi-ax6000/hanwckf/config/diy-part/diy-part2.sh
+  CONFIG_FILE: redmi-ax6000/padavanonly/config/new_wifi.config
+  DIY_P1_SH: redmi-ax6000/padavanonly/diy-part/diy-part1.sh
+  DIY_P2_SH: redmi-ax6000/padavanonly/diy-part/diy-part2.sh
   SSH_ACTIONS: false
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
@@ -157,7 +157,7 @@ jobs:
         touch release.txt
         echo "由衷感谢所有为openwrt无私奉献的大佬们" >> release.txt
         echo " 固件 ip 172.16.1.1" >> release.txt
-        echo " 固件源码地址来自: hanwckf"
+        echo " 固件源码地址来自: padavanonly"
         echo "status=success" >> $GITHUB_OUTPUT
         
     - name: 发布至release
