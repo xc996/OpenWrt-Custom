@@ -19,7 +19,7 @@ env:
   REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x
   REPO_BRANCH: openwrt-21.02
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: redmi-ax6000/padavanonly/config/new_wifi.config
+  CONFIG_FILE: redmi-ax6000/padavanonly/config/mtk_wifi.config
   DIY_P1_SH: redmi-ax6000/padavanonly/diy/diy-part1.sh
   DIY_P2_SH: redmi-ax6000/padavanonly/diy/diy-part2.sh
   SSH_ACTIONS: false
@@ -146,7 +146,7 @@ jobs:
       uses: actions/upload-artifact@main
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
-        name: ${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-redmi-ax6000-hanwckf
+        name: ${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-redmi-ax6000-padavanonly
         path: ${{ env.FIRMWARE }}
         
     - name: 生成release标签
