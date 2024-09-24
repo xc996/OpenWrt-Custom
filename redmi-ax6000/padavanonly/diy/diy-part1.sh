@@ -14,7 +14,3 @@
 #sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
 
 # Add a feed source
-#echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.default
-#echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >>feeds.conf.default
-#git clone https://github.com/messense/aliyundrive-webdav package/messense
-git clone https://github.com/sbwml/luci-app-mosdns -b v5 package/luci-app-mosdns
