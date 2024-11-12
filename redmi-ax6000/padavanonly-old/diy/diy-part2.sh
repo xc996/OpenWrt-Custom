@@ -13,3 +13,5 @@ sed -i 's/192.168.6.1/172.16.1.1/g' package/base-files/files/bin/config_generate
 sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
 
 sed -i 's/luci-app-wrtbwmon//g' target/linux/mediatek/Makefile
+rm -rf feeds/packages/lang/golang
+git clone https://github.com/sbwml/packages_lang_golang -b 22.x feeds/packages/lang/golang
