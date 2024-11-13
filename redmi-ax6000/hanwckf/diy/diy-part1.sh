@@ -18,4 +18,6 @@
 #echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >>feeds.conf.default
 ## 修改DTS的ubi为490MB的0x1ea00000
 sed -i 's/reg = <0x600000 0x6e00000>/reg = <0x600000 0x1ea00000>/' target/linux/mediatek/files-5.4/arch/arm64/boot/dts/mediatek/mt7986a-xiaomi-redmi-router-ax6000.dts
-sed -i '$a src-git smpackage https://github.com/kenzok8/small-package' feeds.conf.default
+
+git clone https://github.com/sbwml/luci-app-mosdns -b v5 package/luci-app-mosdns
+git clone https://github.com/vernesong/OpenClash package/luci-app-openclash
