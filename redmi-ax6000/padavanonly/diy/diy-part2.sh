@@ -17,6 +17,3 @@ rm -rf feeds/packages/lang/golang
 git clone https://github.com/sbwml/packages_lang_golang -b 22.x feeds/packages/lang/golang
 ##-----------------Delete DDNS's examples-----------------
 sed -i '/myddns_ipv4/,$d' feeds/packages/net/ddns-scripts/files/etc/config/ddns
-./scripts/feeds update -a
-./scripts/feeds install -a
-make package/luci-app-adguardhome/{clean,compile} V=s
