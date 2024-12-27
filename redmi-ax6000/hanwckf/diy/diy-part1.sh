@@ -21,5 +21,5 @@ sed -i 's/reg = <0x600000 0x6e00000>/reg = <0x600000 0x1ea00000>/' target/linux/
 
 git clone https://github.com/sbwml/luci-app-mosdns -b v5 package/luci-app-mosdns
 git clone https://github.com/vernesong/OpenClash package/luci-app-openclash
-git clone https://github.com/kongfl888/luci-app-adguardhome package/luci-app-adguardhome
+git clone https://github.com/rootphantomer/luci-app-adguardhome.git package/luci-app-adguardhome
 git clone https://github.com/sirpdboy/luci-app-ddns-go.git package/ddns-go
