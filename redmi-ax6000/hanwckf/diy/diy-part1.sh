@@ -25,4 +25,3 @@ git clone https://github.com/SuperArilo/luci-app-adguardhome.git package/luci-ap
 git clone https://github.com/Firsgith/luci-app-wolplus.git package/luci-app-wolplus
 git clone https://github.com/Lienol/openwrt-OpenAppFilter.git package/open-app-filter
 git clone https://github.com/sirpdboy/luci-app-lucky.git package/lucky
-git clone https://github.com/brvphoenix/luci-app-wrtbwmon.git package/luci-app-wrtbwmon
