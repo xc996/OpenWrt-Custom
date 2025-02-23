@@ -16,7 +16,10 @@
 # Add a feed source
 ## 修改DTS的ubi为490MB的0x1ea00000
 sed -i 's/reg = <0x600000 0x6e00000>/reg = <0x600000 0x1ea00000>/' target/linux/mediatek/files-5.4/arch/arm64/boot/dts/mediatek/mt7986a-xiaomi-redmi-router-ax6000.dts
+
 git clone https://github.com/sbwml/luci-app-mosdns -b v5 package/luci-app-mosdns
 git clone https://github.com/vernesong/OpenClash package/luci-app-openclash
-git clone https://github.com/kongfl888/luci-app-adguardhome package/luci-app-adguardhome
-git clone https://github.com/sirpdboy/luci-app-ddns-go.git package/ddns-go
+git clone https://github.com/SuperArilo/luci-app-adguardhome.git package/luci-app-adguardhome
+git clone https://github.com/Firsgith/luci-app-wolplus.git package/luci-app-wolplus
+git clone https://github.com/Lienol/openwrt-OpenAppFilter.git package/open-app-filter
+git clone https://github.com/sirpdboy/luci-app-lucky.git package/lucky
