@@ -168,18 +168,18 @@ jobs:
         echo "===== 编译输出目录 ====="
         du -h -d 2 openwrt/bin/ || echo "bin 目录不存在"
       
-        - name: 整理文件并重命名
-        id: organize
-        if: env.UPLOAD_FIRMWARE == 'true' && !cancelled() && steps.compile.outputs.status == 'success'
-        run: | 
-          echo "===== 开始整理文件 ====="
-          # 检查目标目录是否存在
-          if [ -d openwrt/bin/targets/*/* ]; then
-            echo "目标目录存在，继续处理"
-            cd openwrt/bin/targets/*/*
-            echo "当前目录: $(pwd)"
-            echo "目录内容 (重命名前):"
-            ls -la
+    - name: 整理文件并重命名
+      id: organize
+      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled() && steps.compile.outputs.status == 'success'
+      run: | 
+        echo "===== 开始整理文件 ====="
+        # 检查目标目录是否存在
+        if [ -d openwrt/bin/targets/*/* ]; then
+          echo "目标目录存在，继续处理"
+          cd openwrt/bin/targets/*/*
+          echo "当前目录: $(pwd)"
+          echo "目录内容 (重命名前):"
+          ls -la
             # 查找所有固件文件
             echo "固件文件 (重命名前):"
             find . -name "*.bin" -o -name "*.img" -o -name "*.gz" | grep -v packages
