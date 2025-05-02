@@ -91,6 +91,18 @@ jobs:
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
         
+    - name: 检查配置文件格式
+      run: |
+        cd openwrt
+        echo "===== 检查配置文件格式 ====="
+        # 检查配置文件是否有语法错误
+        grep -n "missing separator" .config || echo "未发现明显的语法错误"
+        # 检查是否有重复的配置项
+        echo "===== 检查重复配置项 ====="
+        cat .config | sort | uniq -c | sort -nr | head -20
+        # 显示配置文件的行数
+        echo "配置文件总行数: $(wc -l < .config)"
+        
     - name: SSH链接管理
       uses: P3TERX/ssh2actions@v1.0.0
       if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
@@ -102,7 +114,11 @@ jobs:
       id: package
       run: |
         cd openwrt
+        echo "===== 开始配置 ====="
+        cat .config | head -n 20
+        echo "===== 配置文件前20行 ====="
         make defconfig
+        echo "===== defconfig 完成 ====="
         make download -j$(nproc)
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
@@ -111,57 +127,113 @@ jobs:
       id: compile
       run: |
         cd openwrt
+        echo "===== 开始编译 ====="
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s
+        # 添加详细的编译日志输出并保存到文件
+        make -j$(nproc) V=s 2>&1 | tee compile.log || make -j1 V=s 2>&1 | tee -a compile.log
+        # 如果编译失败，保存最后100行日志
+        if [ $? -ne 0 ]; then
+          echo "===== 编译失败，保存错误日志 ====="
+          tail -n 100 compile.log > compile_error.log
+          echo "status=fail" >> $GITHUB_OUTPUT
+        else
+          echo "===== 编译成功 ====="
+          echo "status=success" >> $GITHUB_OUTPUT
+        fi
+        # 输出编译结果目录结构
+        echo "===== 编译结果目录结构 ====="
+        ls -la bin/targets/ || echo "targets 目录不存在"
+        find bin/targets/ -type d -exec ls -la {} \; || echo "无法列出目标目录"
+        # 检查设备名称
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/'|sed -n '1p' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=$(cat DEVICE_NAME)" >> $GITHUB_ENV
-        cat DEVICE_NAME
+        echo "===== 设备名称 ====="
+        cat DEVICE_NAME || echo "无法获取设备名称"
         echo $GITHUB_ENV
-        # 修改这一行，确保正确提取 TARGET_NAME
+        # 检查目标名称
+        echo "===== 目标名称提取 ====="
+        grep '^CONFIG_TARGET.*=y' .config | grep DEVICE | head -n 5
         grep '^CONFIG_TARGET.*=y' .config | sed -r 's/.*TARGET_(.*)_DEVICE_.*=y/\1/' | sed -n '1p' > TARGET_NAME
         [ -s TARGET_NAME ] && echo "TARGET_NAME=$(cat TARGET_NAME)" >> $GITHUB_ENV
-        cat TARGET_NAME
+        echo "TARGET_NAME文件内容: $(cat TARGET_NAME || echo '文件为空')"
         echo $GITHUB_ENV
         echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
         
     - name: 查看磁盘使用情况
       if: (!cancelled())
-      run: df -hT
+      run: |
+        echo "===== 磁盘使用情况 ====="
+        df -hT
+        echo "===== 编译输出目录 ====="
+        du -h -d 2 openwrt/bin/ || echo "bin 目录不存在"
       
     - name: 整理文件并重命名
       id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled() && steps.compile.outputs.status == 'success'
       run: | 
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-        # 修改这一行，使用 prename 或者其他方式重命名
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install rename || sudo -E apt-get -qq install prename || sudo -E apt-get -qq install perl
-        # 如果安装的是 perl，则使用 perl 表达式重命名
-        if command -v rename >/dev/null 2>&1; then
-          rename 's/.*${{ env.TARGET_NAME }}-/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-/' *
-          rename 's/ax6000/ax6000-spi_nand-110m/' *
-        elif command -v prename >/dev/null 2>&1; then
-          prename 's/.*${{ env.TARGET_NAME }}-/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-/' *
-          prename 's/ax6000/ax6000-spi_nand-110m/' *
+        echo "===== 开始整理文件 ====="
+        # 检查目标目录是否存在
+        if [ -d openwrt/bin/targets/*/* ]; then
+          echo "目标目录存在，继续处理"
+          cd openwrt/bin/targets/*/*
+          echo "当前目录: $(pwd)"
+          echo "目录内容:"
+          ls -la
+          rm -rf packages
+          echo "已删除 packages 目录"
+          
+          # 安装重命名工具
+          echo "===== 安装重命名工具 ====="
+          sudo -E apt-get -qq update
+          sudo -E apt-get -qq install rename || sudo -E apt-get -qq install prename || sudo -E apt-get -qq install perl
+          
+          # 检查重命名工具
+          echo "===== 检查重命名工具 ====="
+          which rename || which prename || echo "未找到重命名工具"
+          
+          # 执行重命名
+          echo "===== 执行重命名 ====="
+          if command -v rename >/dev/null 2>&1; then
+            echo "使用 rename 命令"
+            rename 's/.*-/-AX6000-/' *
+            rename 's/ax6000/ax6000-spi_nand-110m/' *
+          elif command -v prename >/dev/null 2>&1; then
+            echo "使用 prename 命令"
+            prename 's/.*-/-AX6000-/' *
+            prename 's/ax6000/ax6000-spi_nand-110m/' *
+          else
+            echo "使用 for 循环和 mv 命令"
+            for file in *; do
+              echo "处理文件: $file"
+              new_name=$(echo "$file" | sed "s/.*-/-AX6000-/")
+              if [ "$file" != "$new_name" ]; then
+                echo "重命名: $file -> $new_name"
+                mv "$file" "$new_name"
+              fi
+            done
+            for file in *; do
+              echo "处理文件: $file"
+              new_name=$(echo "$file" | sed "s/ax6000/ax6000-spi_nand-110m/")
+              if [ "$file" != "$new_name" ]; then
+                echo "重命名: $file -> $new_name"
+                mv "$file" "$new_name"
+              fi
+            done
+          fi
+          
+          # 显示重命名后的文件
+          echo "===== 重命名后的文件 ====="
+          ls -la
+          
+          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+          echo "status=success" >> $GITHUB_OUTPUT
         else
-          # 使用 for 循环和 mv 命令作为备选方案
-          for file in *; do
-            new_name=$(echo "$file" | sed "s/.*${{ env.TARGET_NAME }}-/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-/")
-            if [ "$file" != "$new_name" ]; then
-              mv "$file" "$new_name"
-            fi
-          done
-          for file in *; do
-            new_name=$(echo "$file" | sed "s/ax6000/ax6000-spi_nand-110m/")
-            if [ "$file" != "$new_name" ]; then
-              mv "$file" "$new_name"
-            fi
-          done
+          echo "固件目录不存在，可能是编译失败" 
+          echo "查看 openwrt/bin 目录结构:"
+          find openwrt/bin -type d | sort
+          echo "status=fail" >> $GITHUB_OUTPUT
         fi
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-        echo "status=success" >> $GITHUB_OUTPUT
         echo $GITHUB_ENV
         echo $GITHUB_OUTPUT
         
@@ -171,6 +243,7 @@ jobs:
       with:
         name: ${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-redmi-ax6000-padavanonly-24.10-110
         path: ${{ env.FIRMWARE }}
+
         
     - name: 生成release标签
       id: tag
