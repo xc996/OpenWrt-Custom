@@ -1,4 +1,4 @@
-# 指定目标平台为联发科(MediaTek)
+﻿# 指定目标平台为联发科(MediaTek)
 CONFIG_TARGET_mediatek=y
 # 指定芯片型号为MT7986
 CONFIG_TARGET_mediatek_mt7986=y
