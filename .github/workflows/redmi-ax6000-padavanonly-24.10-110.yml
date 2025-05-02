@@ -117,7 +117,8 @@ jobs:
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=$(cat DEVICE_NAME)" >> $GITHUB_ENV
         cat DEVICE_NAME
         echo $GITHUB_ENV
-        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*TARGET_.*_(.*)_DEVICE_.*=y/\1/'|sed -n '1p' > TARGET_NAME
+        # 修改这一行，确保正确提取 TARGET_NAME
+        grep '^CONFIG_TARGET.*=y' .config | sed -r 's/.*TARGET_(.*)_DEVICE_.*=y/\1/' | sed -n '1p' > TARGET_NAME
         [ -s TARGET_NAME ] && echo "TARGET_NAME=$(cat TARGET_NAME)" >> $GITHUB_ENV
         cat TARGET_NAME
         echo $GITHUB_ENV
@@ -134,9 +135,31 @@ jobs:
       run: | 
         cd openwrt/bin/targets/*/*
         rm -rf packages
-        sudo -E apt-get -qq install rename
-        rename 's/.*${{ env.TARGET_NAME }}-/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-/' *
-        rename 's/ax6000/ax6000-spi_nand-512m/' *
+        # 修改这一行，使用 prename 或者其他方式重命名
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install rename || sudo -E apt-get -qq install prename || sudo -E apt-get -qq install perl
+        # 如果安装的是 perl，则使用 perl 表达式重命名
+        if command -v rename >/dev/null 2>&1; then
+          rename 's/.*${{ env.TARGET_NAME }}-/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-/' *
+          rename 's/ax6000/ax6000-spi_nand-110m/' *
+        elif command -v prename >/dev/null 2>&1; then
+          prename 's/.*${{ env.TARGET_NAME }}-/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-/' *
+          prename 's/ax6000/ax6000-spi_nand-110m/' *
+        else
+          # 使用 for 循环和 mv 命令作为备选方案
+          for file in *; do
+            new_name=$(echo "$file" | sed "s/.*${{ env.TARGET_NAME }}-/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-/")
+            if [ "$file" != "$new_name" ]; then
+              mv "$file" "$new_name"
+            fi
+          done
+          for file in *; do
+            new_name=$(echo "$file" | sed "s/ax6000/ax6000-spi_nand-110m/")
+            if [ "$file" != "$new_name" ]; then
+              mv "$file" "$new_name"
+            fi
+          done
+        fi
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
         echo $GITHUB_ENV
@@ -156,8 +179,8 @@ jobs:
         echo "release_tag=${{ env.OPENWRT_NAME }}-xiaomi_redmi-router-ax6000-${{ env.FILE_DATE }}" >> $GITHUB_OUTPUT
         touch release.txt
         echo "由衷感谢所有为openwrt无私奉献的大佬们" >> release.txt
-        echo " 固件 ip 172.16.1.1" >> release.txt
-        echo " 固件类型: 512MB" >> release.txt
+        echo " 固件 ip 192.168.1.1" >> release.txt
+        echo " 固件类型: 110MB" >> release.txt
         echo " 固件源码地址来自: padavanonly-24.10-110" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
         
