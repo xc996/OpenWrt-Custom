@@ -168,74 +168,81 @@ jobs:
         echo "===== 编译输出目录 ====="
         du -h -d 2 openwrt/bin/ || echo "bin 目录不存在"
       
-    - name: 整理文件并重命名
-      id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled() && steps.compile.outputs.status == 'success'
-      run: | 
-        echo "===== 开始整理文件 ====="
-        # 检查目标目录是否存在
-        if [ -d openwrt/bin/targets/*/* ]; then
-          echo "目标目录存在，继续处理"
-          cd openwrt/bin/targets/*/*
-          echo "当前目录: $(pwd)"
-          echo "目录内容:"
-          ls -la
-          rm -rf packages
-          echo "已删除 packages 目录"
-          
-          # 安装重命名工具
-          echo "===== 安装重命名工具 ====="
-          sudo -E apt-get -qq update
-          sudo -E apt-get -qq install rename || sudo -E apt-get -qq install prename || sudo -E apt-get -qq install perl
-          
-          # 检查重命名工具
-          echo "===== 检查重命名工具 ====="
-          which rename || which prename || echo "未找到重命名工具"
-          
-          # 执行重命名
-          echo "===== 执行重命名 ====="
-          if command -v rename >/dev/null 2>&1; then
-            echo "使用 rename 命令"
-            rename 's/.*-/-AX6000-/' *
-            rename 's/ax6000/ax6000-spi_nand-110m/' *
-          elif command -v prename >/dev/null 2>&1; then
-            echo "使用 prename 命令"
-            prename 's/.*-/-AX6000-/' *
-            prename 's/ax6000/ax6000-spi_nand-110m/' *
+        - name: 整理文件并重命名
+        id: organize
+        if: env.UPLOAD_FIRMWARE == 'true' && !cancelled() && steps.compile.outputs.status == 'success'
+        run: | 
+          echo "===== 开始整理文件 ====="
+          # 检查目标目录是否存在
+          if [ -d openwrt/bin/targets/*/* ]; then
+            echo "目标目录存在，继续处理"
+            cd openwrt/bin/targets/*/*
+            echo "当前目录: $(pwd)"
+            echo "目录内容 (重命名前):"
+            ls -la
+            # 查找所有固件文件
+            echo "固件文件 (重命名前):"
+            find . -name "*.bin" -o -name "*.img" -o -name "*.gz" | grep -v packages
+            
+            rm -rf packages
+            echo "已删除 packages 目录"
+            
+            # 安装重命名工具
+            echo "===== 安装重命名工具 ====="
+            sudo -E apt-get -qq update
+            sudo -E apt-get -qq install rename || sudo -E apt-get -qq install prename || sudo -E apt-get -qq install perl
+            
+            # 检查重命名工具
+            echo "===== 检查重命名工具 ====="
+            which rename || which prename || echo "未找到重命名工具"
+            
+            # 执行重命名
+            echo "===== 执行重命名 ====="
+            if command -v rename >/dev/null 2>&1; then
+              echo "使用 rename 命令"
+              rename 's/.*-/-AX6000-/' *
+              rename 's/ax6000/ax6000-spi_nand-110m/' *
+            elif command -v prename >/dev/null 2>&1; then
+              echo "使用 prename 命令"
+              prename 's/.*-/-AX6000-/' *
+              prename 's/ax6000/ax6000-spi_nand-110m/' *
+            else
+              echo "使用 for 循环和 mv 命令"
+              for file in *; do
+                echo "处理文件: $file"
+                new_name=$(echo "$file" | sed "s/.*-/-AX6000-/")
+                if [ "$file" != "$new_name" ]; then
+                  echo "重命名: $file -> $new_name"
+                  mv "$file" "$new_name"
+                fi
+              done
+              for file in *; do
+                echo "处理文件: $file"
+                new_name=$(echo "$file" | sed "s/ax6000/ax6000-spi_nand-110m/")
+                if [ "$file" != "$new_name" ]; then
+                  echo "重命名: $file -> $new_name"
+                  mv "$file" "$new_name"
+                fi
+              done
+            fi
+            
+            # 显示重命名后的文件
+            echo "===== 重命名后的文件 ====="
+            ls -la
+            # 查找所有固件文件
+            echo "固件文件 (重命名后):"
+            find . -name "*.bin" -o -name "*.img" -o -name "*.gz" | grep -v packages
+            
+            echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+            echo "status=success" >> $GITHUB_OUTPUT
           else
-            echo "使用 for 循环和 mv 命令"
-            for file in *; do
-              echo "处理文件: $file"
-              new_name=$(echo "$file" | sed "s/.*-/-AX6000-/")
-              if [ "$file" != "$new_name" ]; then
-                echo "重命名: $file -> $new_name"
-                mv "$file" "$new_name"
-              fi
-            done
-            for file in *; do
-              echo "处理文件: $file"
-              new_name=$(echo "$file" | sed "s/ax6000/ax6000-spi_nand-110m/")
-              if [ "$file" != "$new_name" ]; then
-                echo "重命名: $file -> $new_name"
-                mv "$file" "$new_name"
-              fi
-            done
+            echo "固件目录不存在，可能是编译失败" 
+            echo "查看 openwrt/bin 目录结构:"
+            find openwrt/bin -type d | sort
+            echo "status=fail" >> $GITHUB_OUTPUT
           fi
-          
-          # 显示重命名后的文件
-          echo "===== 重命名后的文件 ====="
-          ls -la
-          
-          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-          echo "status=success" >> $GITHUB_OUTPUT
-        else
-          echo "固件目录不存在，可能是编译失败" 
-          echo "查看 openwrt/bin 目录结构:"
-          find openwrt/bin -type d | sort
-          echo "status=fail" >> $GITHUB_OUTPUT
-        fi
-        echo $GITHUB_ENV
-        echo $GITHUB_OUTPUT
+          echo $GITHUB_ENV
+          echo $GITHUB_OUTPUT
         
     - name: 上传固件到github
       uses: actions/upload-artifact@main
@@ -264,6 +271,22 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         files: ${{ env.FIRMWARE }}/*
+        name: redmi-ax6000-${{ env.OPENWRT_NAME }}-${{ env.FILE_DATE }}
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        body_path: release.txt
+
+    - name: 发布至release
+      uses: softprops/action-gh-release@v1
+      if: steps.tag.outputs.status == 'success' && !cancelled()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: |
+          ${{ env.FIRMWARE }}/*.bin
+          ${{ env.FIRMWARE }}/*.img
+          ${{ env.FIRMWARE }}/*.gz
+          ${{ env.FIRMWARE }}/*.buildinfo
+          ${{ env.FIRMWARE }}/*.manifest
         name: redmi-ax6000-${{ env.OPENWRT_NAME }}-${{ env.FILE_DATE }}
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
