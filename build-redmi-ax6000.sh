@@ -20,11 +20,13 @@ show_menu() {
     echo "2. 跳过依赖安装"
     echo "3. 跳过源码更新和依赖安装"
     echo "4. 跳过源码更新、依赖安装和feeds更新"
-    echo "5. 仅编译（跳过所有准备步骤，直接开始编译）"
+    echo "5. 仅编译（跳过所有准备步骤）"
     echo "6. 跳过有问题的包（如ruby）"
+    echo "7. 清理环境后完整编译"
+    echo "8. 清理环境后跳过有问题的包编译"
     echo "0. 退出"
     echo ""
-    read -p "请输入选项 [1-6]: " choice
+    read -p "请输入选项 [1-8]: " choice
 }
 
 # 显示菜单并获取用户选择
@@ -35,6 +37,8 @@ SKIP_DEPS=0
 SKIP_UPDATE=0
 SKIP_FEEDS=0
 SKIP_DOWNLOAD=0
+SKIP_PROBLEM_PACKAGES=0
+CLEAN_BUILD=0
 
 case $choice in
     1)
@@ -64,10 +68,15 @@ case $choice in
         ;;
     6)
         echo "您选择了跳过有问题的包并编译模式"
-        SKIP_DEPS=1
-        SKIP_UPDATE=1
-        SKIP_FEEDS=0
-        SKIP_DOWNLOAD=0
+        SKIP_PROBLEM_PACKAGES=1
+        ;;
+    7)
+        echo "您选择了清理环境后完整编译模式"
+        CLEAN_BUILD=1
+        ;;
+    8)
+        echo "您选择了清理环境后跳过有问题的包编译模式"
+        CLEAN_BUILD=1
         SKIP_PROBLEM_PACKAGES=1
         ;;
     0)
@@ -126,6 +135,12 @@ fi
 echo "===== 准备编译环境 ====="
 cd "$WORK_DIR/openwrt"
 
+# 清理构建环境
+if [ $CLEAN_BUILD -eq 1 ]; then
+    echo "===== 清理构建环境 ====="
+    make clean
+fi
+
 # 应用自定义配置
 echo "===== 应用自定义配置 ====="
 if [ -e "$SCRIPT_DIR/$CONFIG_FILE" ]; then
@@ -153,6 +168,26 @@ echo "===== 执行自定义脚本2 ====="
 if [ -e "$SCRIPT_DIR/$DIY_P2_SH" ]; then
     chmod +x "$SCRIPT_DIR/$DIY_P2_SH"
     "$SCRIPT_DIR/$DIY_P2_SH"
+fi
+
+# 禁用有问题的包
+if [ $SKIP_PROBLEM_PACKAGES -eq 1 ]; then
+    echo "===== 禁用可能有问题的包 ====="
+    # 禁用ruby包
+    sed -i 's/CONFIG_PACKAGE_ruby=y/# CONFIG_PACKAGE_ruby is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_ruby-.*=y/# &/' .config
+    
+    # 禁用其他可能有问题的包
+    sed -i 's/CONFIG_PACKAGE_perl=y/# CONFIG_PACKAGE_perl is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_perl-.*=y/# &/' .config
+    
+    # 禁用可能有问题的语言包
+    sed -i 's/CONFIG_PACKAGE_python3=y/# CONFIG_PACKAGE_python3 is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_python3-.*=y/# &/' .config
+    
+    # 禁用其他可能有问题的大型包
+    sed -i 's/CONFIG_PACKAGE_node=y/# CONFIG_PACKAGE_node is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_node-.*=y/# &/' .config
 fi
 
 # 检查配置文件格式
@@ -191,6 +226,13 @@ if [ $COMPILE_STATUS -ne 0 ]; then
     # 检查是否存在固件文件
     if [ ! -f "$WORK_DIR/openwrt/bin/targets/mediatek/mt7986/"*sysupgrade* ]; then
         echo "警告: 未找到固件文件，编译可能未完成"
+        
+        # 检查是否有部分编译成功的文件
+        if [ -d "$WORK_DIR/openwrt/bin/targets/mediatek/mt7986" ]; then
+            echo "但目标目录存在，可能有部分文件生成:"
+            ls -la "$WORK_DIR/openwrt/bin/targets/mediatek/mt7986"
+        fi
+        
         exit 1
     else
         echo "注意: 虽然有错误，但固件文件已生成"
