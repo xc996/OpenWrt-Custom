@@ -21,9 +21,10 @@ show_menu() {
     echo "3. 跳过源码更新和依赖安装"
     echo "4. 跳过源码更新、依赖安装和feeds更新"
     echo "5. 仅编译（跳过所有准备步骤，直接开始编译）"
+    echo "6. 跳过有问题的包（如ruby）"
     echo "0. 退出"
     echo ""
-    read -p "请输入选项 [1-5]: " choice
+    read -p "请输入选项 [1-6]: " choice
 }
 
 # 显示菜单并获取用户选择
@@ -60,6 +61,14 @@ case $choice in
         SKIP_UPDATE=1
         SKIP_FEEDS=1
         SKIP_DOWNLOAD=1
+        ;;
+    6)
+        echo "您选择了跳过有问题的包并编译模式"
+        SKIP_DEPS=1
+        SKIP_UPDATE=1
+        SKIP_FEEDS=0
+        SKIP_DOWNLOAD=0
+        SKIP_PROBLEM_PACKAGES=1
         ;;
     0)
         echo "退出脚本"
@@ -172,12 +181,20 @@ make -j$(nproc) V=s 2>&1 | tee build.log || {
 }
 
 # 检查编译结果
-if [ $? -ne 0 ]; then
+COMPILE_STATUS=$?
+if [ $COMPILE_STATUS -ne 0 ]; then
     echo "===== 编译失败 ====="
     echo "查看错误日志: $WORK_DIR/openwrt/build.log"
     echo "尝试单独编译问题包:"
     echo "cd $WORK_DIR/openwrt && make package/luci-app-eqos-mtk/compile V=s"
-    exit 1
+    
+    # 检查是否存在固件文件
+    if [ ! -f "$WORK_DIR/openwrt/bin/targets/mediatek/mt7986/"*sysupgrade* ]; then
+        echo "警告: 未找到固件文件，编译可能未完成"
+        exit 1
+    else
+        echo "注意: 虽然有错误，但固件文件已生成"
+    fi
 fi
 
 # 整理文件
@@ -196,7 +213,7 @@ if [ -d "$TARGET_DIR" ]; then
     # 重命名文件
     echo "===== 重命名文件 ====="
     for file in *; do
-        if [[ "$file" == *"ax6000"* ]]; then
+        if [ -f "$file" ] && [ "$(echo "$file" | grep -c "ax6000")" -gt 0 ]; then
             newname=$(echo "$file" | sed 's/ax6000/ax6000-spi_nand-110m/')
             echo "重命名: $file -> $newname"
             mv "$file" "$newname"
@@ -213,3 +230,12 @@ echo "===== 编译完成 ====="
 echo "固件文件位于: $TARGET_DIR"
 
 cd "$SCRIPT_DIR"
+
+# 在生成默认配置后添加
+if [ "${SKIP_PROBLEM_PACKAGES:-0}" -eq 1 ]; then
+    echo "===== 禁用可能有问题的包 ====="
+    # 禁用ruby包
+    sed -i 's/CONFIG_PACKAGE_ruby=y/# CONFIG_PACKAGE_ruby is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_ruby-.*=y/# &/' .config
+    # 如果有其他问题包，可以在这里添加
+fi
