@@ -1,0 +1,153 @@
+name: Build OpenWrt
+
+permissions: write-all
+
+on:
+  workflow_dispatch:
+    inputs:
+      ssh:
+        description: 'Enable SSH debugging'
+        required: false
+        default: 'false'
+
+env:
+  REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-24.10
+  REPO_BRANCH: 2410
+  FEEDS_CONF: feeds.conf.default
+  CONFIG_FILE: redmi-ax6000/padavanonly-24.10-110/config/default.config
+  DIY_P1_SH: redmi-ax6000/padavanonly-24.10-110/diy/diy-part1.sh
+  DIY_P2_SH: redmi-ax6000/padavanonly-24.10-110/diy/diy-part2.sh
+  SSH_ACTIONS: false
+  UPLOAD_FIRMWARE: true
+  UPLOAD_RELEASE: true
+  TZ: Asia/Shanghai
+  OPENWRT_NAME: AX6000
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Setup build environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo apt-get -qq update
+        sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.eu.org/init_build_environment.sh)'
+        sudo apt-get -qq autoremove --purge
+        sudo apt-get -qq clean
+        sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
+
+    - name: Cache dl folder
+      uses: actions/cache@v4
+      with:
+        path: /workdir/openwrt/dl
+        key: dl-${{ env.REPO_BRANCH }}-${{ hashFiles('**/.config') }}
+        restore-keys: |
+          dl-${{ env.REPO_BRANCH }}-
+
+    - name: Free disk space
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: false
+        dotnet: false
+        haskell: false
+        large-packages: false
+        swap-storage: false
+
+    - name: Clone source
+      working-directory: /workdir
+      run: |
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+
+    - name: Load feeds & DIY1
+      run: |
+        [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
+        chmod +x $DIY_P1_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P1_SH
+
+    - name: Update & install feeds
+      run: |
+        cd openwrt
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Load config & DIY2
+      run: |
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+        chmod +x $DIY_P2_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P2_SH
+
+    - name: Make defconfig and download packages
+      run: |
+        cd openwrt
+        make defconfig
+        make download -j$(nproc)
+        find dl -size -1024c -exec rm -f {} \;
+
+    - name: Compile
+      id: compile
+      run: |
+        cd openwrt
+        make -j$(nproc) V=s 2>&1 | tee build.log || make -j1 V=s 2>&1 | tee -a build.log
+        if [ $? -ne 0 ]; then
+          echo "status=fail" >> $GITHUB_OUTPUT
+        else
+          echo "status=success" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Organize output and rename
+      id: organize
+      if: steps.compile.outputs.status == 'success'
+      run: |
+        cd openwrt/bin/targets/*/*
+        rm -rf packages
+        sudo apt-get -qq update
+        sudo apt-get -qq install rename || sudo apt-get -qq install prename || sudo apt-get -qq install perl
+        if command -v rename >/dev/null 2>&1; then
+          rename 's/.*-/-AX6000-/' *
+          rename 's/ax6000/ax6000-spi_nand-110m/' *
+        else
+          for f in *; do mv "$f" "$(echo $f | sed 's/.*-/-AX6000-/;s/ax6000/ax6000-spi_nand-110m/')" ; done
+        fi
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      if: steps.organize.outputs.status == 'success'
+      with:
+        name: ${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}
+        path: ${{ env.FIRMWARE }}
+
+    - name: Generate release tag
+      id: tag
+      if: env.UPLOAD_RELEASE == 'true' && steps.organize.outputs.status == 'success'
+      run: |
+        echo "FILE_DATE=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
+        echo "release_tag=${{ env.OPENWRT_NAME }}-xiaomi_redmi-router-ax6000-${{ env.FILE_DATE }}" >> $GITHUB_OUTPUT
+        echo "由衷感谢所有为openwrt无私奉献的大佬们" > release.txt
+        echo " 固件 ip 192.168.1.1" >> release.txt
+        echo " 固件类型: 110MB" >> release.txt
+        echo " 固件源码地址来自: padavanonly-24.10-110" >> release.txt
+
+    - name: Upload to release
+      uses: softprops/action-gh-release@v1
+      if: steps.tag.outputs.release_tag && steps.organize.outputs.status == 'success'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        name: redmi-ax6000-${{ env.OPENWRT_NAME }}-${{ env.FILE_DATE }}
+        body_path: release.txt
+        files: ${{ env.FIRMWARE }}/*
