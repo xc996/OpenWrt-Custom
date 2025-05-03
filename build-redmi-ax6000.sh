@@ -225,13 +225,17 @@ fi
 # 开始编译固件
 echo "===== 开始编译固件 ====="
 # 添加错误处理
-make -j$(nproc) V=s 2>&1 | tee build.log || {
+set +e  # 暂时关闭错误退出
+make -j$(nproc) V=s 2>&1 | tee build.log
+COMPILE_STATUS=$?
+if [ $COMPILE_STATUS -ne 0 ]; then
     echo "===== 编译失败，尝试单线程编译 ====="
     make -j1 V=s 2>&1 | tee -a build.log
-}
+    COMPILE_STATUS=$?
+fi
+set -e  # 重新开启错误退出
 
 # 检查编译结果
-COMPILE_STATUS=${PIPESTATUS[0]}
 if [ $COMPILE_STATUS -ne 0 ]; then
     echo "===== 编译失败 ====="
     echo "查看错误日志: $WORK_DIR/openwrt/build.log"
@@ -239,7 +243,7 @@ if [ $COMPILE_STATUS -ne 0 ]; then
     echo "cd $WORK_DIR/openwrt && make package/luci-app-eqos-mtk/compile V=s"
     
     # 检查是否存在固件文件
-    if [ ! -f "$WORK_DIR/openwrt/bin/targets/mediatek/mt7986/"*sysupgrade* ]; then
+    if ! ls "$WORK_DIR/openwrt/bin/targets/mediatek/mt7986/"*sysupgrade* >/dev/null 2>&1; then
         echo "警告: 未找到固件文件，编译可能未完成"
         
         # 检查是否有部分编译成功的文件
