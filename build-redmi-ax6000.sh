@@ -24,9 +24,10 @@ show_menu() {
     echo "6. 跳过有问题的包（如ruby）"
     echo "7. 清理环境后完整编译"
     echo "8. 清理环境后跳过有问题的包编译"
+    echo "9. 极简编译（禁用所有非必要包）"
     echo "0. 退出"
     echo ""
-    read -p "请输入选项 [1-8]: " choice
+    read -p "请输入选项 [1-9]: " choice
 }
 
 # 显示菜单并获取用户选择
@@ -39,6 +40,7 @@ SKIP_FEEDS=0
 SKIP_DOWNLOAD=0
 SKIP_PROBLEM_PACKAGES=0
 CLEAN_BUILD=0
+MINIMAL_BUILD=0
 
 case $choice in
     1)
@@ -78,6 +80,11 @@ case $choice in
         echo "您选择了清理环境后跳过有问题的包编译模式"
         CLEAN_BUILD=1
         SKIP_PROBLEM_PACKAGES=1
+        ;;
+    9)
+        echo "您选择了极简编译模式（禁用所有非必要包）"
+        CLEAN_BUILD=1
+        MINIMAL_BUILD=1
         ;;
     0)
         echo "退出脚本"
@@ -138,7 +145,7 @@ cd "$WORK_DIR/openwrt"
 # 清理构建环境
 if [ $CLEAN_BUILD -eq 1 ]; then
     echo "===== 清理构建环境 ====="
-    make clean
+    make distclean
 fi
 
 # 应用自定义配置
@@ -171,23 +178,31 @@ if [ -e "$SCRIPT_DIR/$DIY_P2_SH" ]; then
 fi
 
 # 禁用有问题的包
-if [ $SKIP_PROBLEM_PACKAGES -eq 1 ]; then
+if [ $SKIP_PROBLEM_PACKAGES -eq 1 ] || [ $MINIMAL_BUILD -eq 1 ]; then
     echo "===== 禁用可能有问题的包 ====="
-    # 禁用ruby包
+    
+    # 禁用脚本语言包
     sed -i 's/CONFIG_PACKAGE_ruby=y/# CONFIG_PACKAGE_ruby is not set/' .config
     sed -i 's/CONFIG_PACKAGE_ruby-.*=y/# &/' .config
-    
-    # 禁用其他可能有问题的包
     sed -i 's/CONFIG_PACKAGE_perl=y/# CONFIG_PACKAGE_perl is not set/' .config
     sed -i 's/CONFIG_PACKAGE_perl-.*=y/# &/' .config
-    
-    # 禁用可能有问题的语言包
     sed -i 's/CONFIG_PACKAGE_python3=y/# CONFIG_PACKAGE_python3 is not set/' .config
     sed -i 's/CONFIG_PACKAGE_python3-.*=y/# &/' .config
-    
-    # 禁用其他可能有问题的大型包
     sed -i 's/CONFIG_PACKAGE_node=y/# CONFIG_PACKAGE_node is not set/' .config
     sed -i 's/CONFIG_PACKAGE_node-.*=y/# &/' .config
+    
+    # 禁用其他可能有问题的包
+    sed -i 's/CONFIG_PACKAGE_luci-app-eqos-mtk=y/# CONFIG_PACKAGE_luci-app-eqos-mtk is not set/' .config
+    
+    # 如果是极简模式，禁用更多非必要包
+    if [ $MINIMAL_BUILD -eq 1 ]; then
+        echo "===== 极简模式：禁用所有非必要包 ====="
+        # 禁用所有luci应用
+        sed -i 's/CONFIG_PACKAGE_luci-app-.*=y/# &/' .config
+        # 保留基本功能
+        sed -i 's/# CONFIG_PACKAGE_luci-app-firewall is not set/CONFIG_PACKAGE_luci-app-firewall=y/' .config
+        sed -i 's/# CONFIG_PACKAGE_luci-app-opkg is not set/CONFIG_PACKAGE_luci-app-opkg=y/' .config
+    fi
 fi
 
 # 检查配置文件格式
@@ -216,7 +231,7 @@ make -j$(nproc) V=s 2>&1 | tee build.log || {
 }
 
 # 检查编译结果
-COMPILE_STATUS=$?
+COMPILE_STATUS=${PIPESTATUS[0]}
 if [ $COMPILE_STATUS -ne 0 ]; then
     echo "===== 编译失败 ====="
     echo "查看错误日志: $WORK_DIR/openwrt/build.log"
@@ -272,12 +287,3 @@ echo "===== 编译完成 ====="
 echo "固件文件位于: $TARGET_DIR"
 
 cd "$SCRIPT_DIR"
-
-# 在生成默认配置后添加
-if [ "${SKIP_PROBLEM_PACKAGES:-0}" -eq 1 ]; then
-    echo "===== 禁用可能有问题的包 ====="
-    # 禁用ruby包
-    sed -i 's/CONFIG_PACKAGE_ruby=y/# CONFIG_PACKAGE_ruby is not set/' .config
-    sed -i 's/CONFIG_PACKAGE_ruby-.*=y/# &/' .config
-    # 如果有其他问题包，可以在这里添加
-fi
