@@ -149,16 +149,13 @@ jobs:
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=$(cat DEVICE_NAME)" >> $GITHUB_ENV
         echo "===== 设备名称 ====="
         cat DEVICE_NAME || echo "无法获取设备名称"
-        echo $GITHUB_ENV
         # 检查目标名称
         echo "===== 目标名称提取 ====="
         grep '^CONFIG_TARGET.*=y' .config | grep DEVICE | head -n 5
         grep '^CONFIG_TARGET.*=y' .config | sed -r 's/.*TARGET_(.*)_DEVICE_.*=y/\1/' | sed -n '1p' > TARGET_NAME
         [ -s TARGET_NAME ] && echo "TARGET_NAME=$(cat TARGET_NAME)" >> $GITHUB_ENV
         echo "TARGET_NAME文件内容: $(cat TARGET_NAME || echo '文件为空')"
-        echo $GITHUB_ENV
         echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
-        echo "status=success" >> $GITHUB_OUTPUT
         
     - name: 查看磁盘使用情况
       if: (!cancelled())
@@ -242,6 +239,9 @@ jobs:
           find openwrt/bin -type d | sort
           echo "status=fail" >> $GITHUB_OUTPUT
         fi
+        # 删除以下两行，它们导致了错误
+        # echo $GITHUB_ENV 
+        # echo $GITHUB_OUTPUT
         
     - name: 上传固件到github
       uses: actions/upload-artifact@main
