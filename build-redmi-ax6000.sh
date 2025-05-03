@@ -1,9 +1,6 @@
 #!/bin/bash
 # 红米 AX6000 Ubuntu编译脚本
 
-# 设置错误时退出
-set -e
-
 # 设置环境变量
 REPO_URL="https://github.com/padavanonly/immortalwrt-mt798x-24.10"
 REPO_BRANCH="2410"
@@ -16,6 +13,66 @@ OPENWRT_NAME="AX6000"
 echo "===== 红米 AX6000 Ubuntu编译脚本 ====="
 echo ""
 
+# 显示选项菜单
+show_menu() {
+    echo "请选择编译模式："
+    echo "1. 完整编译（包含所有步骤）"
+    echo "2. 跳过依赖安装"
+    echo "3. 跳过源码更新和依赖安装"
+    echo "4. 跳过源码更新、依赖安装和feeds更新"
+    echo "5. 仅编译（跳过所有准备步骤，直接开始编译）"
+    echo "0. 退出"
+    echo ""
+    read -p "请输入选项 [1-5]: " choice
+}
+
+# 显示菜单并获取用户选择
+show_menu
+
+# 根据用户选择设置跳过标志
+SKIP_DEPS=0
+SKIP_UPDATE=0
+SKIP_FEEDS=0
+SKIP_DOWNLOAD=0
+
+case $choice in
+    1)
+        echo "您选择了完整编译模式"
+        ;;
+    2)
+        echo "您选择了跳过依赖安装的编译模式"
+        SKIP_DEPS=1
+        ;;
+    3)
+        echo "您选择了跳过源码更新和依赖安装的编译模式"
+        SKIP_DEPS=1
+        SKIP_UPDATE=1
+        ;;
+    4)
+        echo "您选择了跳过源码更新、依赖安装和feeds更新的编译模式"
+        SKIP_DEPS=1
+        SKIP_UPDATE=1
+        SKIP_FEEDS=1
+        ;;
+    5)
+        echo "您选择了仅编译模式（跳过所有准备步骤）"
+        SKIP_DEPS=1
+        SKIP_UPDATE=1
+        SKIP_FEEDS=1
+        SKIP_DOWNLOAD=1
+        ;;
+    0)
+        echo "退出脚本"
+        exit 0
+        ;;
+    *)
+        echo "无效选项，使用完整编译模式"
+        ;;
+esac
+
+# 设置错误时退出
+set -e
+
 # 检查磁盘空间
 echo "===== 检查磁盘空间 ====="
 df -h
@@ -24,11 +81,15 @@ echo "可用空间: $FREE_SPACE"
 echo ""
 
 # 检查必要工具
-echo "===== 检查并安装必要的依赖 ====="
-sudo apt-get update -y
-sudo apt-get install -y build-essential clang flex bison g++ gawk \
-    gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
-    python3-distutils rsync unzip zlib1g-dev file wget
+if [ $SKIP_DEPS -eq 0 ]; then
+    echo "===== 检查并安装必要的依赖 ====="
+    sudo apt-get update -y
+    sudo apt-get install -y build-essential clang flex bison g++ gawk \
+        gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
+        python3-distutils rsync unzip zlib1g-dev file wget
+else
+    echo "===== 跳过依赖安装 ====="
+fi
 
 # 创建工作目录
 SCRIPT_DIR=$(pwd)
@@ -43,11 +104,13 @@ echo ""
 if [ ! -d "openwrt" ]; then
     echo "===== 下载固件源码 ====="
     git clone $REPO_URL -b $REPO_BRANCH openwrt
-else
+elif [ $SKIP_UPDATE -eq 0 ]; then
     echo "===== 更新固件源码 ====="
     cd openwrt
     git pull
     cd ..
+else
+    echo "===== 跳过源码更新 ====="
 fi
 
 # 准备编译环境
@@ -68,9 +131,13 @@ if [ -e "$SCRIPT_DIR/$DIY_P1_SH" ]; then
 fi
 
 # 更新feeds
-echo "===== 更新feeds ====="
-./scripts/feeds update -a
-./scripts/feeds install -a
+if [ $SKIP_FEEDS -eq 0 ]; then
+    echo "===== 更新feeds ====="
+    ./scripts/feeds update -a
+    ./scripts/feeds install -a
+else
+    echo "===== 跳过feeds更新 ====="
+fi
 
 # 执行自定义脚本2
 echo "===== 执行自定义脚本2 ====="
@@ -88,9 +155,13 @@ echo "===== 生成默认配置 ====="
 make defconfig
 
 # 下载依赖包
-echo "===== 下载依赖包 ====="
-make download -j$(nproc)
-find dl -size -1024c -exec rm -f {} \;
+if [ $SKIP_DOWNLOAD -eq 0 ]; then
+    echo "===== 下载依赖包 ====="
+    make download -j$(nproc)
+    find dl -size -1024c -exec rm -f {} \;
+else
+    echo "===== 跳过依赖包下载 ====="
+fi
 
 # 开始编译固件
 echo "===== 开始编译固件 ====="
