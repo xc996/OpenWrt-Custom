@@ -16,6 +16,13 @@ OPENWRT_NAME="AX6000"
 echo "===== 红米 AX6000 Ubuntu编译脚本 ====="
 echo ""
 
+# 检查磁盘空间
+echo "===== 检查磁盘空间 ====="
+df -h
+FREE_SPACE=$(df -h . | awk 'NR==2 {print $4}')
+echo "可用空间: $FREE_SPACE"
+echo ""
+
 # 检查必要工具
 echo "===== 检查并安装必要的依赖 ====="
 sudo apt-get update -y
@@ -87,7 +94,20 @@ find dl -size -1024c -exec rm -f {} \;
 
 # 开始编译固件
 echo "===== 开始编译固件 ====="
-make -j$(nproc) V=s || make -j1 V=s
+# 添加错误处理
+make -j$(nproc) V=s 2>&1 | tee build.log || {
+    echo "===== 编译失败，尝试单线程编译 ====="
+    make -j1 V=s 2>&1 | tee -a build.log
+}
+
+# 检查编译结果
+if [ $? -ne 0 ]; then
+    echo "===== 编译失败 ====="
+    echo "查看错误日志: $WORK_DIR/openwrt/build.log"
+    echo "尝试单独编译问题包:"
+    echo "cd $WORK_DIR/openwrt && make package/luci-app-eqos-mtk/compile V=s"
+    exit 1
+fi
 
 # 整理文件
 echo "===== 整理文件 ====="
