@@ -25,9 +25,10 @@ show_menu() {
     echo "7. 清理环境后完整编译"
     echo "8. 清理环境后跳过有问题的包编译"
     echo "9. 极简编译（禁用所有非必要包）"
+    echo "10. 诊断模式（单线程编译，详细错误日志）"
     echo "0. 退出"
     echo ""
-    read -p "请输入选项 [1-9]: " choice
+    read -p "请输入选项 [1-10]: " choice
 }
 
 # 显示菜单并获取用户选择
@@ -41,6 +42,7 @@ SKIP_DOWNLOAD=0
 SKIP_PROBLEM_PACKAGES=0
 CLEAN_BUILD=0
 MINIMAL_BUILD=0
+DIAGNOSTIC_MODE=0
 
 case $choice in
     1)
@@ -85,6 +87,10 @@ case $choice in
         echo "您选择了极简编译模式（禁用所有非必要包）"
         CLEAN_BUILD=1
         MINIMAL_BUILD=1
+        ;;
+    10)
+        echo "您选择了诊断模式（单线程编译，详细错误日志）"
+        DIAGNOSTIC_MODE=1
         ;;
     0)
         echo "退出脚本"
@@ -194,6 +200,10 @@ if [ $SKIP_PROBLEM_PACKAGES -eq 1 ] || [ $MINIMAL_BUILD -eq 1 ]; then
     # 禁用其他可能有问题的包
     sed -i 's/CONFIG_PACKAGE_luci-app-eqos-mtk=y/# CONFIG_PACKAGE_luci-app-eqos-mtk is not set/' .config
     
+    # 禁用libnl相关包
+    sed -i 's/CONFIG_PACKAGE_libnl=y/# CONFIG_PACKAGE_libnl is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_libnl-.*=y/# &/' .config
+    
     # 如果是极简模式，禁用更多非必要包
     if [ $MINIMAL_BUILD -eq 1 ]; then
         echo "===== 极简模式：禁用所有非必要包 ====="
@@ -226,16 +236,34 @@ fi
 echo "===== 开始编译固件 ====="
 # 添加错误处理
 set +e  # 暂时关闭错误退出
-make -j$(nproc) V=s 2>&1 | tee build.log
-COMPILE_STATUS=$?
-if [ $COMPILE_STATUS -ne 0 ]; then
-    echo "===== 编译失败，尝试单线程编译 ====="
-    make -j1 V=s 2>&1 | tee -a build.log
+
+# 诊断模式使用单线程编译并收集详细错误日志
+if [ $DIAGNOSTIC_MODE -eq 1 ]; then
+    echo "===== 诊断模式：单线程编译，详细错误日志 ====="
+    # 创建错误日志目录
+    mkdir -p "$WORK_DIR/error_logs"
+    # 使用单线程编译，并将标准输出和错误输出分别保存
+    make -j1 V=s 2> >(tee "$WORK_DIR/error_logs/compile_errors.log") | tee "$WORK_DIR/build.log"
+    # 提取错误信息到单独文件
+    grep -i "error:" "$WORK_DIR/build.log" > "$WORK_DIR/error_logs/error_summary.log"
+    grep -i "failed" "$WORK_DIR/build.log" >> "$WORK_DIR/error_logs/error_summary.log"
+    # 分析每个包的编译状态
+    echo "===== 分析包编译状态 ====="
+    grep -i "package/.*compile" "$WORK_DIR/build.log" | grep -i "error\|failed" > "$WORK_DIR/error_logs/failed_packages.log"
+    echo "错误日志已保存到: $WORK_DIR/error_logs/"
+else
+    # 正常编译模式
+    make -j$(nproc) V=s 2>&1 | tee build.log
     COMPILE_STATUS=$?
+    if [ $COMPILE_STATUS -ne 0 ]; then
+        echo "===== 编译失败，尝试单线程编译 ====="
+        make -j1 V=s 2>&1 | tee -a build.log
+        COMPILE_STATUS=$?
+    fi
 fi
-set -e  # 重新开启错误退出
 
 # 检查编译结果
+COMPILE_STATUS=$?
 if [ $COMPILE_STATUS -ne 0 ]; then
     echo "===== 编译失败 ====="
     echo "查看错误日志: $WORK_DIR/openwrt/build.log"
@@ -252,11 +280,16 @@ if [ $COMPILE_STATUS -ne 0 ]; then
             ls -la "$WORK_DIR/openwrt/bin/targets/mediatek/mt7986"
         fi
         
-        exit 1
+        # 在诊断模式下不退出，继续处理文件
+        if [ $DIAGNOSTIC_MODE -ne 1 ]; then
+            exit 1
+        fi
     else
         echo "注意: 虽然有错误，但固件文件已生成"
     fi
 fi
+
+set -e  # 重新开启错误退出
 
 # 整理文件
 echo "===== 整理文件 ====="
@@ -285,6 +318,20 @@ if [ -d "$TARGET_DIR" ]; then
     ls -la
 else
     echo "警告: 目标目录不存在: $TARGET_DIR"
+fi
+
+# 如果是诊断模式，显示错误摘要
+if [ $DIAGNOSTIC_MODE -eq 1 ] && [ -f "$WORK_DIR/error_logs/error_summary.log" ]; then
+    echo "===== 错误摘要 ====="
+    echo "发现以下错误:"
+    cat "$WORK_DIR/error_logs/error_summary.log"
+    
+    if [ -f "$WORK_DIR/error_logs/failed_packages.log" ]; then
+        echo "===== 编译失败的包 ====="
+        cat "$WORK_DIR/error_logs/failed_packages.log"
+    fi
+    
+    echo "完整错误日志位于: $WORK_DIR/error_logs/compile_errors.log"
 fi
 
 echo "===== 编译完成 ====="
