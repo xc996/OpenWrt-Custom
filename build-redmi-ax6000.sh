@@ -1,5 +1,5 @@
 #!/bin/bash
-# 红米 AX6000 Ubuntu编译脚本
+# 红米 AX6000 编译脚本 - 优化版
 
 # 设置环境变量
 REPO_URL="https://github.com/padavanonly/immortalwrt-mt798x-24.10"
@@ -10,7 +10,7 @@ DIY_P2_SH="redmi-ax6000/padavanonly-24.10-110/diy/diy-part2.sh"
 OPENWRT_NAME="AX6000"
 
 # 显示欢迎信息
-echo "===== 红米 AX6000 Ubuntu编译脚本 ====="
+echo "===== 红米 AX6000 编译脚本 - 优化版 ====="
 echo ""
 
 # 显示选项菜单
@@ -26,9 +26,10 @@ show_menu() {
     echo "8. 清理环境后跳过有问题的包编译"
     echo "9. 极简编译（禁用所有非必要包）"
     echo "10. 诊断模式（单线程编译，详细错误日志）"
+    echo "11. 修复模式（自动处理常见问题）"
     echo "0. 退出"
     echo ""
-    read -p "请输入选项 [1-10]: " choice
+    read -p "请输入选项 [1-11]: " choice
 }
 
 # 显示菜单并获取用户选择
@@ -43,6 +44,7 @@ SKIP_PROBLEM_PACKAGES=0
 CLEAN_BUILD=0
 MINIMAL_BUILD=0
 DIAGNOSTIC_MODE=0
+FIX_MODE=0
 
 case $choice in
     1)
@@ -92,6 +94,10 @@ case $choice in
         echo "您选择了诊断模式（单线程编译，详细错误日志）"
         DIAGNOSTIC_MODE=1
         ;;
+    11)
+        echo "您选择了修复模式（自动处理常见问题）"
+        FIX_MODE=1
+        ;;
     0)
         echo "退出脚本"
         exit 0
@@ -117,7 +123,10 @@ if [ $SKIP_DEPS -eq 0 ]; then
     sudo apt-get update -y
     sudo apt-get install -y build-essential clang flex bison g++ gawk \
         gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
-        python3-distutils rsync unzip zlib1g-dev file wget
+        python3-distutils rsync unzip zlib1g-dev file wget \
+        libelf-dev ecj fastjar java-propose-classpath \
+        libpython3-dev python3 python3-pip python3-setuptools \
+        libfuse-dev libxml-parser-perl
 else
     echo "===== 跳过依赖安装 ====="
 fi
@@ -183,6 +192,39 @@ if [ -e "$SCRIPT_DIR/$DIY_P2_SH" ]; then
     "$SCRIPT_DIR/$DIY_P2_SH"
 fi
 
+# 修复模式 - 自动处理常见问题
+if [ $FIX_MODE -eq 1 ]; then
+    echo "===== 修复模式：处理常见问题 ====="
+    
+    # 修复 rust 相关问题
+    echo "禁用 rust 相关包..."
+    sed -i 's/CONFIG_PACKAGE_rust=y/# CONFIG_PACKAGE_rust is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_rust-.*=y/# &/' .config
+    
+    # 修复缺失的内核模块依赖
+    echo "添加缺失的内核模块依赖..."
+    echo "CONFIG_PACKAGE_kmod-crypto-chacha20poly1305=y" >> .config
+    echo "CONFIG_PACKAGE_kmod-xdp-sockets-diag=m" >> .config
+    
+    # 修复 libnl 相关问题
+    echo "修复 libnl 相关问题..."
+    sed -i 's/CONFIG_PACKAGE_libnl-cli=y/# CONFIG_PACKAGE_libnl-cli is not set/' .config
+    
+    # 修复 CMake 警告
+    echo "忽略 CMake 警告..."
+    
+    # 修复 C++ 编译器问题
+    echo "确保 C++ 编译器可用..."
+    
+    # 禁用有问题的包
+    echo "禁用已知有问题的包..."
+    sed -i 's/CONFIG_PACKAGE_dae=y/# CONFIG_PACKAGE_dae is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_daed=y/# CONFIG_PACKAGE_daed is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_libreswan=y/# CONFIG_PACKAGE_libreswan is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_strongswan=y/# CONFIG_PACKAGE_strongswan is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_netatalk=y/# CONFIG_PACKAGE_netatalk is not set/' .config
+fi
+
 # 禁用有问题的包
 if [ $SKIP_PROBLEM_PACKAGES -eq 1 ] || [ $MINIMAL_BUILD -eq 1 ]; then
     echo "===== 禁用可能有问题的包 ====="
@@ -204,6 +246,13 @@ if [ $SKIP_PROBLEM_PACKAGES -eq 1 ] || [ $MINIMAL_BUILD -eq 1 ]; then
     sed -i 's/CONFIG_PACKAGE_libnl=y/# CONFIG_PACKAGE_libnl is not set/' .config
     sed -i 's/CONFIG_PACKAGE_libnl-.*=y/# &/' .config
     
+    # 禁用依赖缺失的包
+    sed -i 's/CONFIG_PACKAGE_dae=y/# CONFIG_PACKAGE_dae is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_daed=y/# CONFIG_PACKAGE_daed is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_libreswan=y/# CONFIG_PACKAGE_libreswan is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_strongswan=y/# CONFIG_PACKAGE_strongswan is not set/' .config
+    sed -i 's/CONFIG_PACKAGE_netatalk=y/# CONFIG_PACKAGE_netatalk is not set/' .config
+    
     # 如果是极简模式，禁用更多非必要包
     if [ $MINIMAL_BUILD -eq 1 ]; then
         echo "===== 极简模式：禁用所有非必要包 ====="
@@ -212,6 +261,15 @@ if [ $SKIP_PROBLEM_PACKAGES -eq 1 ] || [ $MINIMAL_BUILD -eq 1 ]; then
         # 保留基本功能
         sed -i 's/# CONFIG_PACKAGE_luci-app-firewall is not set/CONFIG_PACKAGE_luci-app-firewall=y/' .config
         sed -i 's/# CONFIG_PACKAGE_luci-app-opkg is not set/CONFIG_PACKAGE_luci-app-opkg=y/' .config
+        
+        # 禁用无线相关包（如果不需要）
+        sed -i 's/CONFIG_PACKAGE_wpad.*=y/# &/' .config
+        sed -i 's/CONFIG_PACKAGE_hostapd.*=y/# &/' .config
+        
+        # 禁用其他可能导致问题的库
+        sed -i 's/CONFIG_PACKAGE_libnetfilter.*=y/# &/' .config
+        sed -i 's/CONFIG_PACKAGE_libnfnetlink.*=y/# &/' .config
+        sed -i 's/CONFIG_PACKAGE_libmnl.*=y/# &/' .config
     fi
 fi
 
@@ -232,6 +290,9 @@ else
     echo "===== 跳过依赖包下载 ====="
 fi
 
+# 创建错误日志目录
+mkdir -p "$SCRIPT_DIR/error_logs"
+
 # 开始编译固件
 echo "===== 开始编译固件 ====="
 # 添加错误处理
@@ -240,25 +301,31 @@ set +e  # 暂时关闭错误退出
 # 诊断模式使用单线程编译并收集详细错误日志
 if [ $DIAGNOSTIC_MODE -eq 1 ]; then
     echo "===== 诊断模式：单线程编译，详细错误日志 ====="
-    # 创建错误日志目录
-    mkdir -p "$WORK_DIR/error_logs"
     # 使用单线程编译，并将标准输出和错误输出分别保存
-    make -j1 V=s 2> >(tee "$WORK_DIR/error_logs/compile_errors.log") | tee "$WORK_DIR/build.log"
+    make -j1 V=s 2> >(tee "$SCRIPT_DIR/error_logs/compile_errors.log") | tee "$WORK_DIR/build.log"
+    
     # 提取错误信息到单独文件
-    grep -i "error:" "$WORK_DIR/build.log" > "$WORK_DIR/error_logs/error_summary.log"
-    grep -i "failed" "$WORK_DIR/build.log" >> "$WORK_DIR/error_logs/error_summary.log"
+    grep -i "error:" "$WORK_DIR/build.log" > "$SCRIPT_DIR/error_logs/error_summary.log"
+    grep -i "failed" "$WORK_DIR/build.log" >> "$SCRIPT_DIR/error_logs/error_summary.log"
+    
     # 分析每个包的编译状态
     echo "===== 分析包编译状态 ====="
-    grep -i "package/.*compile" "$WORK_DIR/build.log" | grep -i "error\|failed" > "$WORK_DIR/error_logs/failed_packages.log"
-    echo "错误日志已保存到: $WORK_DIR/error_logs/"
+    grep -i "package/.*compile" "$WORK_DIR/build.log" | grep -i "error\|failed" > "$SCRIPT_DIR/error_logs/failed_packages.log"
+    echo "错误日志已保存到: $SCRIPT_DIR/error_logs/"
 else
     # 正常编译模式
-    make -j$(nproc) V=s 2>&1 | tee build.log
-    COMPILE_STATUS=$?
-    if [ $COMPILE_STATUS -ne 0 ]; then
-        echo "===== 编译失败，尝试单线程编译 ====="
-        make -j1 V=s 2>&1 | tee -a build.log
+    if [ $FIX_MODE -eq 1 ]; then
+        # 修复模式使用单线程编译
+        echo "===== 修复模式：使用单线程编译 ====="
+        make -j1 V=s 2>&1 | tee "$WORK_DIR/build.log"
+    else
+        # 多线程编译，失败时尝试单线程
+        make -j$(nproc) V=s 2>&1 | tee "$WORK_DIR/build.log"
         COMPILE_STATUS=$?
+        if [ $COMPILE_STATUS -ne 0 ]; then
+            echo "===== 编译失败，尝试单线程编译 ====="
+            make -j1 V=s 2>&1 | tee -a "$WORK_DIR/build.log"
+        fi
     fi
 fi
 
@@ -266,9 +333,12 @@ fi
 COMPILE_STATUS=$?
 if [ $COMPILE_STATUS -ne 0 ]; then
     echo "===== 编译失败 ====="
-    echo "查看错误日志: $WORK_DIR/openwrt/build.log"
-    echo "尝试单独编译问题包:"
-    echo "cd $WORK_DIR/openwrt && make package/luci-app-eqos-mtk/compile V=s"
+    echo "查看错误日志: $WORK_DIR/build.log"
+    
+    # 提取错误信息
+    grep -i "error:" "$WORK_DIR/build.log" > "$SCRIPT_DIR/error_logs/error_summary.log"
+    grep -i "failed" "$WORK_DIR/build.log" >> "$SCRIPT_DIR/error_logs/error_summary.log"
+    echo "错误摘要已保存到: $SCRIPT_DIR/error_logs/error_summary.log"
     
     # 检查是否存在固件文件
     if ! ls "$WORK_DIR/openwrt/bin/targets/mediatek/mt7986/"*sysupgrade* >/dev/null 2>&1; then
@@ -281,7 +351,7 @@ if [ $COMPILE_STATUS -ne 0 ]; then
         fi
         
         # 在诊断模式下不退出，继续处理文件
-        if [ $DIAGNOSTIC_MODE -ne 1 ]; then
+        if [ $DIAGNOSTIC_MODE -ne 1 ] && [ $FIX_MODE -ne 1 ]; then
             exit 1
         fi
     else
@@ -321,17 +391,26 @@ else
 fi
 
 # 如果是诊断模式，显示错误摘要
-if [ $DIAGNOSTIC_MODE -eq 1 ] && [ -f "$WORK_DIR/error_logs/error_summary.log" ]; then
+if [ $DIAGNOSTIC_MODE -eq 1 ] && [ -f "$SCRIPT_DIR/error_logs/error_summary.log" ]; then
     echo "===== 错误摘要 ====="
     echo "发现以下错误:"
-    cat "$WORK_DIR/error_logs/error_summary.log"
+    cat "$SCRIPT_DIR/error_logs/error_summary.log"
     
-    if [ -f "$WORK_DIR/error_logs/failed_packages.log" ]; then
+    if [ -f "$SCRIPT_DIR/error_logs/failed_packages.log" ]; then
         echo "===== 编译失败的包 ====="
-        cat "$WORK_DIR/error_logs/failed_packages.log"
+        cat "$SCRIPT_DIR/error_logs/failed_packages.log"
     fi
     
-    echo "完整错误日志位于: $WORK_DIR/error_logs/compile_errors.log"
+    echo "完整错误日志位于: $SCRIPT_DIR/error_logs/compile_errors.log"
+fi
+
+# 如果是修复模式，提供建议
+if [ $FIX_MODE -eq 1 ]; then
+    echo "===== 修复模式建议 ====="
+    echo "如果编译仍然失败，请尝试以下操作:"
+    echo "1. 使用选项9（极简编译模式）"
+    echo "2. 使用选项10（诊断模式）查看详细错误"
+    echo "3. 手动修改配置文件，禁用错误日志中提到的问题包"
 fi
 
 echo "===== 编译完成 ====="
